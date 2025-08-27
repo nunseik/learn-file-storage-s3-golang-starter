@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"encoding/base64"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
 )
@@ -29,10 +32,6 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// set a const maxMemory to 10MB with bit-shifting the number 10 to the left 20 times
-	const maxMemory = 10 << 20
-	r.ParseMultipartForm(maxMemory)
-
 	// "thumbnail" should match the HTML form input name
 	file, header, err := r.FormFile("thumbnail")
 	if err != nil {
@@ -46,10 +45,19 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusBadRequest, "Missing Content-Type", nil)
 		return
 	}
+	mediaType = strings.Split(mediaType, "/")[1]
 
-	data, err := io.ReadAll(file)
+	uniqueFilePath := filepath.Join(cfg.assetsRoot, fmt.Sprintf("%s.%s", videoIDString, mediaType))
+	f, err := os.Create(uniqueFilePath)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Unable to read file", err)
+		respondWithError(w, http.StatusInternalServerError, "Unable to create unique file", err)
+		return
+	}
+	defer f.Close()
+
+	_, err = io.Copy(f, file)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to copy file", err)
 		return
 	}
 
@@ -63,9 +71,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	videoDataString := base64.StdEncoding.EncodeToString(data)
-
-	url := fmt.Sprintf("data:%s;base64,%s",mediaType,videoDataString)
+	url := fmt.Sprintf("http://localhost:%s/assets/%s.%s", cfg.port, videoIDString, mediaType)
 	video.ThumbnailURL = &url
 
 	err = cfg.db.UpdateVideo(video)
@@ -76,6 +82,3 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 
 	respondWithJSON(w, http.StatusOK, video)
 }
-
-
-
