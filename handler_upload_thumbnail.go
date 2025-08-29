@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
@@ -52,7 +54,15 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 
 	mediaType = strings.Split(mediaType, "/")[1]
-	uniqueFilePath := filepath.Join(cfg.assetsRoot, fmt.Sprintf("%s.%s", videoIDString, mediaType))
+	// genereate array 32 bytes and assign rand bytes to it
+	key := make([]byte, 32)
+	_, err = rand.Read(key)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "unable to rand read", err)
+		return
+	}
+	uniqueID := base64.RawURLEncoding.EncodeToString(key)
+	uniqueFilePath := filepath.Join(cfg.assetsRoot, fmt.Sprintf("%s.%s", uniqueID, mediaType))
 	f, err := os.Create(uniqueFilePath)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Unable to create unique file", err)
@@ -76,7 +86,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	url := fmt.Sprintf("http://localhost:%s/assets/%s.%s", cfg.port, videoIDString, mediaType)
+	url := fmt.Sprintf("http://localhost:%s/assets/%s.%s", cfg.port, uniqueID, mediaType)
 	video.ThumbnailURL = &url
 
 	err = cfg.db.UpdateVideo(video)
