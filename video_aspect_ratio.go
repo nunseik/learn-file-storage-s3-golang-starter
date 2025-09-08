@@ -43,10 +43,10 @@ func getVideoAspectRatio(filePath string) (string, error) {
 	}
 	// Compare with tolerance (2% here)
 	if isAspectRatioApprox(vw, vh, 16, 9, 0.02) {
-		return "16:9", nil
+		return "landscape", nil
 	}
 	if isAspectRatioApprox(vw, vh, 9, 16, 0.02) {
-		return "9:16", nil
+		return "portrait", nil
 	}
 	return "other", nil
 }

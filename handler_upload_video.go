@@ -84,6 +84,11 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "error copying file content", err)
 		return
 	}
+	aspectRatio, err := getVideoAspectRatio(dst.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "could not retrieve aspect ratio", err)
+		return
+	}
 
 	defer dst.Close()
 	defer os.Remove(dst.Name())
@@ -100,7 +105,8 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "unable to rand read", err)
 		return
 	}
-	fileKey := hex.EncodeToString(key) + ".mp4"
+
+	fileKey := aspectRatio + "/" + hex.EncodeToString(key) + ".mp4"
 
 	putObjectInput := &s3.PutObjectInput{
 		Bucket:      aws.String(cfg.s3Bucket),
