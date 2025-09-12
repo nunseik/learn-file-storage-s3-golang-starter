@@ -77,6 +77,8 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "error creating destination file", err)
 		return
 	}
+	defer dst.Close()
+	defer os.Remove(dst.Name())
 
 	// Copy the uploaded file content to the new file
 	_, err = io.Copy(dst, file)
@@ -90,14 +92,26 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	defer dst.Close()
-	defer os.Remove(dst.Name())
-
-	_, err = dst.Seek(0, io.SeekStart)
+	processedFastFile, err := processVideoForFastStart(dst.Name())
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "error seeking temp file", err)
+		respondWithError(w, http.StatusInternalServerError, "could not process fast file", err)
 		return
 	}
+
+	fastFile, err := os.Open(processedFastFile)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "error opening temp file", err)
+		return
+	}
+	defer fastFile.Close()
+	defer os.Remove(processedFastFile)
+
+	_, err = fastFile.Seek(0, io.SeekStart)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "error seeking fastFile", err)
+		return
+	}
+
 	// Generate 32 random bytes and encode them to create a unique ID.
 	key := make([]byte, 32)
 	_, err = rand.Read(key)
@@ -111,7 +125,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	putObjectInput := &s3.PutObjectInput{
 		Bucket:      aws.String(cfg.s3Bucket),
 		Key:         aws.String(fileKey),
-		Body:        dst,
+		Body:        fastFile,
 		ContentType: aws.String(mediaType),
 	}
 
