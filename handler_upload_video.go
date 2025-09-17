@@ -137,7 +137,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "error putting object in s3", err)
 		return
 	}
-	VideoURL := fmt.Sprintf("%v,%v", cfg.s3Bucket, fileKey)
+	VideoURL := fmt.Sprintf("%s,%s", cfg.s3Bucket, fileKey)
 
 	videoMetadata.VideoURL = &VideoURL
 
@@ -168,17 +168,21 @@ func generatePresignedURL(s3Client *s3.Client, bucket, key string, expireTime ti
 }
 
 func (cfg *apiConfig) dbVideoToSignedVideo(video database.Video) (database.Video, error) {
-	if video.VideoURL == nil || !strings.Contains(*video.VideoURL, ",") {
-		return video, fmt.Errorf("invalid video_url format")
+	if video.VideoURL == nil {
+		return video, nil
 	}
-	parts := strings.SplitN(*video.VideoURL, ",", 2)
-	bucket, key := parts[0], parts[1]
-	presignedURL, err := generatePresignedURL(cfg.s3Client, bucket, key, 2*time.Minute)
+	parts := strings.Split(*video.VideoURL, ",")
+	if len(parts) < 2 {
+		return video, nil
+	}
+	bucket, key := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+	if bucket == "" || key == "" {
+		return video, nil
+	}
+	url, err := generatePresignedURL(cfg.s3Client, bucket, key, 5*time.Minute)
 	if err != nil {
 		return video, err
 	}
-
-	video.VideoURL = &presignedURL
-
+	video.VideoURL = &url
 	return video, nil
 }

@@ -124,8 +124,7 @@ func (cfg *apiConfig) handlerVideosRetrieve(w http.ResponseWriter, r *http.Reque
 	for _, v := range videos {
 		sv, err := cfg.dbVideoToSignedVideo(v)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "failed to presign video", err)
-			return
+			continue
 		}
 		signed = append(signed, sv)
 	}
